@@ -1,0 +1,15 @@
+{
+  "name": "vulnerabilidade",
+  "version": "1.0.0",
+  "description": "O Express.js é um framework popular para desenvolvimento de aplicações web em Node.js. Enquanto o Express em si é bastante minimalista e extensível, as vulnerabilidades muitas vezes surgem não diretamente do próprio framework, mas de como ele é usado, ou de middlewares e extensões que são adicionados a ele.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
