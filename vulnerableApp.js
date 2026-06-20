@@ -1,5 +1,6 @@
-const express = require('express');
-const fs = require('fs');
+const express = require("express");
+const fs = require("fs");
+const path = require("path");
 
 const app = express();
 const port = 3000;
@@ -8,67 +9,98 @@ const port = 3000;
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
-// Rotas
+const fakeDatabase = {
+  users: [
+    {
+      id: 1,
+      username: "alice",
+      password: "password123",
+    },
+  ],
+};
 
 // 1. Exposição de detalhes de erros
-app.get('/error', (req, res) => {
-    throw new Error('Erro forçado');
+// Problema: sem error handler seguro, o erro pode expor detalhes internos.
+app.get("/error", (req, res) => {
+  throw new Error("Erro forçado");
 });
 
 // 2. Injeção de código via eval
-app.get('/eval', (req, res) => {
-    const result = eval(req.query.code);
-    res.send(`Resultado: ${result}`);
+// Problema: executa código recebido por query string.
+app.get("/eval", (req, res) => {
+  const result = eval(req.query.code);
+  res.send(`Resultado: ${result}`);
 });
 
 // 3. Upload de arquivos não seguro
-app.post('/upload', (req, res) => {
-    const fileContent = req.body.fileContent;
-    const fileName = req.body.fileName;
+// Problema: usa o nome do arquivo enviado pelo usuário diretamente.
+app.post("/upload", (req, res) => {
+  const fileContent = req.body.fileContent;
+  const fileName = req.body.fileName;
 
-    fs.writeFileSync(`./uploads/${fileName}`, fileContent);
+  if (!fs.existsSync("./uploads")) {
+    fs.mkdirSync("./uploads");
+  }
 
-    res.send('Arquivo salvo com sucesso!');
+  fs.writeFileSync(`./uploads/${fileName}`, fileContent);
+
+  res.send("Arquivo salvo com sucesso!");
 });
 
 // 4. Não escapar saída - possível XSS
-app.get('/search', (req, res) => {
-    const query = req.query.q;
-    res.send(`Resultados da pesquisa para: ${query}`);
+// Problema: renderiza diretamente uma entrada controlada pelo usuário.
+app.get("/search", (req, res) => {
+  const query = req.query.q;
+
+  res.send(`
+    <html>
+      <body>
+        <h1>Busca</h1>
+        <p>Resultados da pesquisa para: ${query}</p>
+      </body>
+    </html>
+  `);
 });
 
-// 7. Exposição de diretório (Directory Traversal)
-app.get('/get-file', (req, res) => {
-    const fileName = req.query.filename;
-    res.sendFile(path.join(__dirname, fileName));
+// 5. Exposição de diretório - Directory Traversal
+// Problema: permite montar caminho de arquivo com base em input externo.
+app.get("/get-file", (req, res) => {
+  const fileName = req.query.filename;
+
+  res.sendFile(path.join(__dirname, fileName));
 });
 
-// 8. SQL Injection (Simulação)
-let fakeDatabase = {
-    users: [
-        { id: 1, username: 'alice', password: 'password123' }
-    ]
-};
+// 6. Consulta insegura simulando risco de Injection
+// Observação: aqui não existe SQL real, então é melhor chamar de simulação.
+app.get("/users", (req, res) => {
+  const userId = req.query.id;
 
-app.get('/users', (req, res) => {
-    const userId = req.query.id;
-    const user = fakeDatabase.users.find(u => u.id === userId);
-    res.send(user);
+  const user = fakeDatabase.users.find((u) => String(u.id) === userId);
+
+  res.send(user);
 });
 
-// 9. Não limitar tentativas de login - Vulnerável a ataques de força bruta
-app.post('/login', (req, res) => {
-    const username = req.body.username;
-    const password = req.body.password;
+// 7. Não limitar tentativas de login
+// Problema: vulnerável a tentativas repetidas de autenticação.
+app.post("/login", (req, res) => {
+  const username = req.body.username;
+  const password = req.body.password;
 
-    const user = fakeDatabase.users.find(u => u.username === username && u.password === password);
-    if (user) {
-        res.send('Login bem-sucedido!');
-    } else {
-        res.send('Credenciais incorretas!');
-    }
+  const user = fakeDatabase.users.find(
+    (u) => u.username === username && u.password === password,
+  );
+
+  if (user) {
+    res.send("Login bem-sucedido!");
+  } else {
+    res.send("Credenciais incorretas!");
+  }
 });
 
-app.listen(port, () => {
+if (require.main === module) {
+  app.listen(port, () => {
     console.log(`Aplicativo vulnerável rodando em http://localhost:${port}`);
-});
+  });
+}
+
+module.exports = app;
